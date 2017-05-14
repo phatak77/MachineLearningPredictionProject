@@ -72,6 +72,7 @@ pred_rpart = predict(mod_rpart,myval)
 accuracy_rpart <- confusionMatrix(pred_rpart,myval$classe)$overall[[1]]
 ```
 The accuracy for this model is also `r accuracy_rpart`.  Further running the data for random forest
+Applying on the validation test for cross validation
 ```{r}
 mod_rf = randomForest(classe~.,data = mytrain)
 pred_rf = predict(mod_rf,myval)
@@ -94,7 +95,10 @@ compred <- predict(commodfit,predDF)
 confusionMatrix(compred,predDF$classe)$overall[[1]]
 ```
 Stacking improves the accuracy compared to lda and rpart algorithm indivitually. But still the random forest model gives better accuracy.
-
+The out of sample error is:
+```{r}
+1 - accuracy_rf
+```
 ##Appendix 1: Figures
 The correlation matrix for the selected predictors, to check that the predictors are orthogonal.
 ```{r}
