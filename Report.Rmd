@@ -1,0 +1,109 @@
+---
+title: "Practical Machine Learning Course: Report"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+##Include some libraries
+```{r warning=FALSE}
+library(caret)
+library(ggplot2)
+library(randomForest)
+library(rattle)
+```
+## Get the Data
+The data has been downloaded to the local folder.  Further the two files are read
+```{r}
+train_data = read.csv("~/temp/Coursera/Prediction_Assignment/pml-training.csv")
+test_data = read.csv("~/temp/Coursera/Prediction_Assignment/pml-testing.csv")
+```
+##Cleaning The Data
+In the project statement it is mentioned to use the data from accelerometers on the belt,forearm,
+arm and dumbell.  So we will apply filter to the training set and get only those columns from
+the training data as predictors.
+Also the output or the variable against which we need to predict is the classe variable in the training set.  So let us inlcude this column in the filter. To avoid modifying the original data let's assign this filtered data to new variable called "train"
+```{r}
+filter = grep("belt|forearm|arm|dumbell|classe",names(train_data))
+train = train_data[,filter]
+```
+Further check for any NA values
+```{r}
+sum(is.na(train))
+unique(apply(train,2,function(x) (sum(is.na(x))/length(x))*100))
+```
+There are predictors having 97% NA values and some predictors having no NA values.  It is not good idea to impute values for 97% missing data.  So removing the columns having 97% missing values.
+```{r}
+train = train[,colSums(is.na(train))==0]
+sum(is.na(train))
+```
+Now all the NA values have been removed.
+Further removing predictors have near zero variance
+```{r}
+nzv <- nearZeroVar(train,saveMetrics = TRUE)
+train <- train[,nzv$nzv==FALSE]
+```
+Set the test data to have the same predictor as the train set except for the outcome variable classe
+The last column i.e. the 40th column is the classe variable column.
+```{r}
+trainnames = colnames(train[,-40])
+test <- test_data[trainnames]
+```
+##Partitioning The Data
+Further the train data will be partitioned into a train sub set and validation sub set.
+```{r}
+set.seed(1234)
+inTrain = createDataPartition(train$classe,p=0.7,list=FALSE)
+mytrain = train[inTrain,]
+myval = train[-inTrain,]
+```
+##Model Selection
+The first model we check is the lda model
+```{r}
+mod_lda = train(classe~.,data=mytrain,method='lda')
+pred_lda = predict(mod_lda,myval)
+accuracy_lda <- confusionMatrix(pred_lda,myval$classe)$overall[[1]]
+```
+The accuracy is just `r accuracy_lda`. So lets try another model like the classification
+```{r}
+mod_rpart = train(classe~.,data = mytrain,method='rpart')
+pred_rpart = predict(mod_rpart,myval)
+accuracy_rpart <- confusionMatrix(pred_rpart,myval$classe)$overall[[1]]
+```
+The accuracy for this model is also `r accuracy_rpart`.  Further running the data for random forest
+```{r}
+mod_rf = randomForest(classe~.,data = mytrain)
+pred_rf = predict(mod_rf,myval)
+accuracy_rf <- confusionMatrix(pred_rf,myval$classe)$overall[[1]]
+```
+Accuracy obrained is `r accuracy_rf`.  So random forest gives better results than the other two models. Also the prediction matrix shows very less missclassification
+```{r}
+confusionMatrix(pred_rf,myval$classe)$table
+```
+Now applying this model to the actual test data
+```{r}
+pred_test_data = predict(mod_rf,test)
+pred_test_data
+```
+Just to check if stacking lda and rpart model can give better results
+```{r}
+predDF <- data.frame(pred_rpart,pred_lda,classe=myval$classe)
+commodfit <- train(classe~.,method="rf",data=predDF)
+compred <- predict(commodfit,predDF)
+confusionMatrix(compred,predDF$classe)$overall[[1]]
+```
+Stacking improves the accuracy compared to lda and rpart algorithm indivitually. But still the random forest model gives better accuracy.
+
+##Appendix 1: Figures
+The correlation matrix for the selected predictors, to check that the predictors are orthogonal.
+```{r}
+corr_predictors <- cor(train[,-40])
+library(corrplot)
+corrplot(corr_predictors)
+```
+The classification tree
+```{r}
+library(rattle)
+fancyRpartPlot(mod_rpart$finalModel,sub = "Classification Tree")
+```
